@@ -1,6 +1,6 @@
 # La Cuenta
 
-Una calculadora con alma de ticket para repartir gastos entre amigos sin discutir.
+Una calculadora con alma de ticket para repartir gastos entre amigos.
 
 Pensada para el caso real: salisteis a cenar, un par de personas pagaron cosas distintas,
 y hay que dividirlo entre todos los que estuvieron — algunos sólo para ciertos gastos.
