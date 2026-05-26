@@ -24,6 +24,12 @@
     draft: { payer: null, participants: new Set() },
   };
 
+  // Precomputed share URL so the click handler stays synchronous —
+  // some browsers (Safari/WebKit) drop the user-gesture context across
+  // an `await`, which kills `navigator.clipboard.writeText`.
+  let shareUrlCache = '';
+  let shareUrlGen = 0;
+
   // ─── utils ──────────────────────────────────────────────
   const $ = (sel) => document.querySelector(sel);
   const uid = () => Math.random().toString(36).slice(2, 10);
@@ -140,6 +146,18 @@
     const json = JSON.stringify(toWire());
     const gz = await gzip(json);
     return location.origin + location.pathname + '#s=' + bytesToB64Url(gz);
+  }
+
+  async function refreshShareUrl() {
+    const myGen = ++shareUrlGen;
+    if (state.people.length === 0 && state.expenses.length === 0) {
+      shareUrlCache = '';
+      return;
+    }
+    try {
+      const url = await buildShareUrl();
+      if (myGen === shareUrlGen) shareUrlCache = url;
+    } catch (e) { /* ignore */ }
   }
 
   async function tryLoadFromHash() {
@@ -419,6 +437,7 @@
     renderTotalsAndMeta(result.total);
     renderSettle(result);
     save();
+    refreshShareUrl(); // fire-and-forget; click reads from the cache
   }
 
   // ─── actions ─────────────────────────────────────────────
@@ -543,18 +562,19 @@
       rerender();
     });
 
-    $('#btn-share').addEventListener('click', async () => {
+    $('#btn-share').addEventListener('click', () => {
       if (state.people.length === 0 && state.expenses.length === 0) {
         toast('no hay nada que compartir todavía.');
         return;
       }
-      const url = await buildShareUrl();
-      try {
-        await navigator.clipboard.writeText(url);
-        toast('enlace copiado al portapapeles.');
-      } catch (e) {
-        window.prompt('Copia este enlace para compartir:', url);
-      }
+      // Cache should be warm by now; on the rare race, fall back to a fresh build.
+      const useUrl = (url) => {
+        navigator.clipboard.writeText(url)
+          .then(() => toast('enlace copiado al portapapeles.'))
+          .catch(() => window.prompt('Copia este enlace para compartir:', url));
+      };
+      if (shareUrlCache) useUrl(shareUrlCache);
+      else buildShareUrl().then(useUrl);
     });
 
     $('#btn-reset').addEventListener('click', () => {
