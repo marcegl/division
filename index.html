@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>La Cuenta — divide gastos entre amigos sin discutir</title>
+  <meta name="description" content="Una calculadora con alma de ticket. Reparte la cuenta entre amigos, calcula quién debe a quién y minimiza los pagos." />
+  <meta name="theme-color" content="#f4ecd8" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300..700&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f4ecd8'/%3E%3Ctext x='50' y='62' font-family='Georgia,serif' font-size='62' font-style='italic' text-anchor='middle' fill='%238b2942'%3E%C2%A2%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="masthead">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">№</span>
+      <h1 class="brand-name"><em>La</em> Cuenta</h1>
+      <span class="brand-id" id="brand-id">— mesa 1</span>
+    </div>
+    <p class="tagline">Reparte la cuenta entre amigos. <em>Sin discusiones.</em></p>
+    <nav class="masthead-actions">
+      <button class="btn-ghost" id="btn-currency" title="Cambiar moneda">€</button>
+      <button class="btn-ghost" id="btn-share" title="Copiar enlace para compartir">compartir</button>
+      <button class="btn-ghost danger" id="btn-reset" title="Vaciar el ticket">empezar de cero</button>
+    </nav>
+  </header>
+
+  <main class="layout">
+
+    <!-- PEOPLE BAR -->
+    <section class="people-bar" aria-label="Comensales">
+      <div class="section-label">
+        <span class="label-num">i.</span>
+        <span class="label-text">comensales</span>
+      </div>
+      <div class="people-list" id="people-list" role="list"></div>
+      <form class="add-person" id="add-person-form" autocomplete="off">
+        <input
+          type="text"
+          id="new-person-input"
+          name="name"
+          placeholder="añadir persona…"
+          maxlength="20"
+          aria-label="Nombre de la nueva persona"
+          required
+        />
+        <button type="submit" aria-label="Añadir persona">＋</button>
+      </form>
+    </section>
+
+    <!-- RECEIPT -->
+    <section class="receipt" aria-label="Ticket de gastos">
+      <div class="receipt-edge top" aria-hidden="true"></div>
+
+      <article class="receipt-inner">
+        <header class="receipt-head">
+          <h2><span class="amp">&amp;</span> el ticket</h2>
+          <span class="receipt-meta" id="receipt-meta">— sin gastos —</span>
+        </header>
+
+        <div class="receipt-cols" aria-hidden="true">
+          <span>concepto</span>
+          <span>pagó</span>
+          <span class="r">monto</span>
+        </div>
+
+        <ul class="expenses" id="expenses-list" role="list"></ul>
+
+        <p class="empty-receipt" id="empty-receipt">
+          aquí van apareciendo los gastos.<br />
+          <span>añade uno abajo.</span>
+        </p>
+
+        <div class="dotted" aria-hidden="true"></div>
+
+        <details class="add-expense" id="add-expense" open>
+          <summary>
+            <span class="plus">＋</span>
+            <span class="summary-text">añadir un gasto</span>
+            <span class="summary-collapsed">＋ otro gasto</span>
+          </summary>
+          <form id="expense-form" class="expense-form" autocomplete="off">
+
+            <label class="field field-desc">
+              <span class="field-label">concepto</span>
+              <input type="text" name="description" placeholder="cena · taxi · copas…" maxlength="40" required />
+            </label>
+
+            <label class="field field-amount">
+              <span class="field-label">monto</span>
+              <div class="amount-row">
+                <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" inputmode="decimal" required />
+                <span class="currency-symbol" id="currency-symbol">€</span>
+              </div>
+            </label>
+
+            <fieldset class="field field-payer">
+              <legend>pagó</legend>
+              <div class="chips chips-payer" id="payer-chips" role="radiogroup"></div>
+            </fieldset>
+
+            <fieldset class="field field-participants">
+              <legend>
+                para
+                <button type="button" class="toggle-all" id="toggle-all" title="Marcar / desmarcar a todos">todos</button>
+              </legend>
+              <div class="chips chips-participants" id="participant-chips" role="group"></div>
+            </fieldset>
+
+            <button type="submit" class="btn-primary">
+              <span>añadir al ticket</span>
+              <span class="arrow">↳</span>
+            </button>
+          </form>
+        </details>
+
+        <div class="dotted" aria-hidden="true"></div>
+
+        <footer class="totals">
+          <div class="totals-row">
+            <span>subtotal</span>
+            <span class="num" id="subtotal">—</span>
+          </div>
+          <div class="totals-row">
+            <span>nº de gastos</span>
+            <span class="num" id="expense-count">0</span>
+          </div>
+          <div class="totals-row total">
+            <span>total</span>
+            <span class="num" id="total">—</span>
+          </div>
+          <p class="totals-stamp" id="totals-stamp">— pendiente —</p>
+        </footer>
+      </article>
+
+      <div class="receipt-edge bottom" aria-hidden="true"></div>
+    </section>
+
+    <!-- SETTLE -->
+    <aside class="settle" aria-label="Liquidación">
+      <div class="section-label">
+        <span class="label-num">ii.</span>
+        <span class="label-text">cuentas claras</span>
+      </div>
+
+      <h3 class="settle-h">balances</h3>
+      <ul id="balances" class="balances" role="list"></ul>
+
+      <div class="divider" aria-hidden="true">
+        <span></span>
+        <span class="dot">·</span>
+        <span></span>
+      </div>
+
+      <h3 class="settle-h">quién paga a quién <small>— mínimas transferencias</small></h3>
+      <ol id="transactions" class="transactions" role="list"></ol>
+
+      <p class="hint" id="settle-hint">
+        Añade comensales y al menos un gasto para ver el reparto.
+      </p>
+
+      <div class="seal" id="seal" aria-hidden="true">
+        <svg viewBox="0 0 120 120" width="100%" height="100%">
+          <defs>
+            <path id="circ" d="M 60,60 m -42,0 a 42,42 0 1,1 84,0 a 42,42 0 1,1 -84,0" />
+          </defs>
+          <circle cx="60" cy="60" r="50" fill="none" stroke="currentColor" stroke-width="1.2" />
+          <circle cx="60" cy="60" r="46" fill="none" stroke="currentColor" stroke-width="0.6" stroke-dasharray="2 2" />
+          <text font-family="Fraunces, serif" font-size="9" font-style="italic" letter-spacing="2" fill="currentColor">
+            <textPath href="#circ" startOffset="0">· cuenta saldada · cuenta saldada · </textPath>
+          </text>
+          <text x="60" y="56" text-anchor="middle" font-family="Instrument Serif, serif" font-size="14" font-style="italic" fill="currentColor">pagado</text>
+          <text x="60" y="72" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="7" letter-spacing="1.5" fill="currentColor">CON CALMA</text>
+        </svg>
+      </div>
+    </aside>
+
+  </main>
+
+  <section class="cases" aria-label="Cómo manejamos cada caso">
+    <h2><em>Cada caso</em>, cubierto.</h2>
+    <div class="cases-grid">
+      <article>
+        <span class="case-num">01</span>
+        <h4>Pagó uno, comieron todos</h4>
+        <p>El clásico. Marca al pagador, marca a todos como comensales del gasto, listo.</p>
+      </article>
+      <article>
+        <span class="case-num">02</span>
+        <h4>Varios pagaron</h4>
+        <p>Cada gasto guarda su propio pagador. La Cuenta combina los importes y te dice el saldo neto de cada uno.</p>
+      </article>
+      <article>
+        <span class="case-num">03</span>
+        <h4>No todos participaron</h4>
+        <p>¿Sólo cuatro pidieron postre? Marca sólo a esos en el campo <strong>para</strong>. El gasto se reparte únicamente entre ellos.</p>
+      </article>
+      <article>
+        <span class="case-num">04</span>
+        <h4>Invita la casa</h4>
+        <p>Quien paga no tiene que aparecer en <strong>para</strong>. Útil para regalos, cumpleaños o cuando alguien invita.</p>
+      </article>
+      <article>
+        <span class="case-num">05</span>
+        <h4>Mínimas transferencias</h4>
+        <p>Con seis personas y diez gastos cruzados pueden salir muchas deudas. Reducimos todo a los pagos imprescindibles.</p>
+      </article>
+      <article>
+        <span class="case-num">06</span>
+        <h4>Centavos justos</h4>
+        <p>Los redondeos se reparten de forma determinista: nadie paga más por un decimal escondido.</p>
+      </article>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>hecho con calma · <a href="https://github.com/marcegl/division" target="_blank" rel="noopener">código abierto en github</a></p>
+    <p class="footer-mini">tus datos viven sólo en este navegador. nada sale de aquí salvo que pulses <em>compartir</em>.</p>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
