@@ -45,22 +45,7 @@
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); } catch (e) { /* quota */ }
   }
 
-  function load() {
-    // URL hash takes precedence (someone shared a link)
-    if (location.hash.startsWith('#s=')) {
-      try {
-        const raw = atob(decodeURIComponent(location.hash.slice(3)));
-        const data = JSON.parse(raw);
-        if (Array.isArray(data.people) && Array.isArray(data.expenses)) {
-          state.people = data.people;
-          state.expenses = data.expenses;
-          if (data.currency) state.currency = data.currency;
-          history.replaceState(null, '', location.pathname + location.search);
-          save();
-          return;
-        }
-      } catch (e) { /* fall through */ }
-    }
+  function loadFromStorage() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
@@ -69,6 +54,103 @@
       if (Array.isArray(data.expenses)) state.expenses = data.expenses;
       if (typeof data.currency === 'string') state.currency = data.currency;
     } catch (e) { /* ignore */ }
+  }
+
+  // ─── share encoding ──────────────────────────────────────
+  // Compact wire format: drops random IDs, uses indices + a bitmask
+  // for participants, amounts in integer cents. Then gzip + base64url
+  // so the link stays short for WhatsApp et al.
+  function toWire() {
+    const idx = new Map(state.people.map((p, i) => [p.id, i]));
+    const expenses = state.expenses
+      .filter((e) => idx.has(e.payerId))
+      .map((e) => {
+        let mask = 0;
+        e.participantIds.forEach((id) => {
+          const i = idx.get(id);
+          if (i != null) mask |= (1 << i);
+        });
+        return [e.description, Math.round(e.amount * 100), idx.get(e.payerId), mask];
+      })
+      .filter((row) => row[3] !== 0);
+    return {
+      c: state.currency,
+      p: state.people.map((p) => p.name),
+      e: expenses,
+    };
+  }
+
+  function fromWire(data) {
+    if (!data || !Array.isArray(data.p) || !Array.isArray(data.e)) return false;
+    const people = data.p.map((name, i) => ({
+      id: uid(),
+      name: String(name).slice(0, 40),
+      color: COLORS[i % COLORS.length],
+    }));
+    const expenses = data.e.map((row) => {
+      if (!Array.isArray(row) || row.length < 4) return null;
+      const [description, cents, payerIdx, mask] = row;
+      const payer = people[payerIdx];
+      if (!payer) return null;
+      const partIds = [];
+      for (let i = 0; i < people.length; i++) {
+        if (mask & (1 << i)) partIds.push(people[i].id);
+      }
+      if (partIds.length === 0) return null;
+      return {
+        id: uid(),
+        description: String(description).slice(0, 80),
+        amount: Math.max(0, Number(cents) / 100),
+        payerId: payer.id,
+        participantIds: partIds,
+        createdAt: Date.now(),
+      };
+    }).filter(Boolean);
+    state.people = people;
+    state.expenses = expenses;
+    if (typeof data.c === 'string') state.currency = data.c;
+    return true;
+  }
+
+  function bytesToB64Url(bytes) {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function b64UrlToBytes(s) {
+    let t = s.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = (4 - (t.length % 4)) % 4;
+    if (pad) t += '='.repeat(pad);
+    const bin = atob(t);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  async function gzip(str) {
+    const s = new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'));
+    return new Uint8Array(await new Response(s).arrayBuffer());
+  }
+  async function gunzip(bytes) {
+    const s = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return await new Response(s).text();
+  }
+
+  async function buildShareUrl() {
+    const json = JSON.stringify(toWire());
+    const gz = await gzip(json);
+    return location.origin + location.pathname + '#s=' + bytesToB64Url(gz);
+  }
+
+  async function tryLoadFromHash() {
+    if (!location.hash.startsWith('#s=')) return false;
+    try {
+      const bytes = b64UrlToBytes(location.hash.slice(3));
+      const json = await gunzip(bytes);
+      return fromWire(JSON.parse(json));
+    } catch (e) {
+      return false;
+    }
   }
 
   // ─── core calculation ────────────────────────────────────
@@ -397,8 +479,19 @@
   }
 
   // ─── wire up ─────────────────────────────────────────────
-  function init() {
-    load();
+  async function init() {
+    // A shared link in the hash takes precedence over what's saved locally.
+    if (location.hash.startsWith('#s=')) {
+      const ok = await tryLoadFromHash();
+      if (ok) {
+        history.replaceState(null, '', location.pathname + location.search);
+        save();
+      } else {
+        loadFromStorage();
+      }
+    } else {
+      loadFromStorage();
+    }
 
     // Hydrate the draft.participants with everyone by default.
     state.people.forEach((p) => state.draft.participants.add(p.id));
@@ -455,13 +548,7 @@
         toast('no hay nada que compartir todavía.');
         return;
       }
-      const payload = {
-        people: state.people,
-        expenses: state.expenses,
-        currency: state.currency,
-      };
-      const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-      const url = `${location.origin}${location.pathname}#s=${encodeURIComponent(encoded)}`;
+      const url = await buildShareUrl();
       try {
         await navigator.clipboard.writeText(url);
         toast('enlace copiado al portapapeles.');
